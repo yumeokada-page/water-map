@@ -1,0 +1,137 @@
+
+<style>
+  .brand-dot { cursor: pointer; transition: r 0.15s; }
+  .brand-dot:hover { opacity: 0.85; }
+  .tooltip {
+    position: absolute;
+    background: var(--color-background-primary);
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-md);
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 180px;
+    color: var(--color-text-primary);
+    z-index: 10;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<div style="padding: 1rem 0;">
+  <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 1rem;">
+    <div class="legend-item"><div class="legend-dot" style="background:#888780;"></div>マス（低価格）</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1D9E75;"></div>産地系プレミアム</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#378ADD;"></div>輸入プレミアム</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7F77DD;"></div>機能性・アルカリ</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#D85A30;"></div>スパークリング</div>
+  </div>
+
+  <div style="position: relative; width: 100%;">
+    <svg id="posmap" viewBox="0 0 620 500" width="100%" style="display:block;"></svg>
+    <div class="tooltip" id="tt"></div>
+  </div>
+</div>
+
+<script>
+const W = 620, H = 500;
+const PAD = { l: 80, r: 30, t: 30, b: 70 };
+const innerW = W - PAD.l - PAD.r;
+const innerH = H - PAD.t - PAD.b;
+
+const brands = [
+  { name: "Bisleri", x: 0.12, y: 0.08, r: 18, color: "#888780", cat: "mass", note: "₹10〜20 / 量販", tag: "マス" },
+  { name: "Aquafina\n(PepsiCo)", x: 0.08, y: 0.18, r: 13, color: "#888780", cat: "mass", note: "₹15〜20 / RO精製水", tag: "マス" },
+  { name: "Kinley\n(Coca-Cola)", x: 0.15, y: 0.22, r: 12, color: "#888780", cat: "mass", note: "₹15〜20 / 広配流", tag: "マス" },
+  { name: "Bailley\n(Parle)", x: 0.10, y: 0.30, r: 10, color: "#888780", cat: "mass", note: "₹10〜15 / ローカル強い", tag: "マス" },
+  { name: "Campa Sure\n(Reliance)", x: 0.06, y: 0.38, r: 10, color: "#888780", cat: "mass", note: "₹5〜15 / 2025年新規参入", tag: "マス" },
+  { name: "Himalayan\n(Tata)", x: 0.52, y: 0.35, r: 15, color: "#1D9E75", cat: "origin", note: "₹30〜50 / ヒマラヤ産天然水", tag: "産地" },
+  { name: "Vedica\n(Bisleri)", x: 0.46, y: 0.45, r: 11, color: "#1D9E75", cat: "origin", note: "₹40〜60 / ヒマラヤ湧水", tag: "産地" },
+  { name: "Qua", x: 0.54, y: 0.52, r: 9, color: "#1D9E75", cat: "origin", note: "₹40〜60 / Himalayan foothills", tag: "産地" },
+  { name: "Aava", x: 0.50, y: 0.60, r: 9, color: "#7F77DD", cat: "func", note: "自然アルカリ pH8 / Gujarat源泉", tag: "機能性" },
+  { name: "Rhythm\n(Marvelle)", x: 0.44, y: 0.68, r: 7, color: "#1D9E75", cat: "origin", note: "2024年新規 / ヒマラヤ産", tag: "産地" },
+  { name: "Evian", x: 0.75, y: 0.30, r: 12, color: "#378ADD", cat: "import", note: "₹150〜200+ / フランスアルプス", tag: "輸入" },
+  { name: "Perrier", x: 0.78, y: 0.45, r: 10, color: "#D85A30", cat: "sparkling", note: "₹150〜250 / 仏産炭酸", tag: "スパークリング" },
+  { name: "San\nPellegrino", x: 0.82, y: 0.55, r: 9, color: "#D85A30", cat: "sparkling", note: "₹200+ / 伊産炭酸", tag: "スパークリング" },
+  { name: "Veen", x: 0.72, y: 0.62, r: 7, color: "#378ADD", cat: "import", note: "₹200+ / フィンランド産", tag: "輸入" },
+  { name: "Evocus", x: 0.62, y: 0.72, r: 13, color: "#7F77DD", cat: "func", note: "₹100 / ブラックアルカリ水", tag: "機能性" },
+  { name: "Godawan\n(Diageo)", x: 0.68, y: 0.50, r: 8, color: "#1D9E75", cat: "origin", note: "2024年新規 / Diageo India", tag: "産地" },
+  { name: "Clear Premium\nWater", x: 0.40, y: 0.78, r: 8, color: "#7F77DD", cat: "func", note: "HoReCa中心 / クリア系プレミアム", tag: "機能性" },
+  { name: "★ 新ブランド\n(富士山 / エベレスト)", x: 0.84, y: 0.76, r: 11, color: "#D85A30", cat: "new", note: "想定ポジション\n希少産地 × 最高価格帯", tag: "想定" },
+];
+
+const svg = document.getElementById("posmap");
+const ns = "http://www.w3.org/2000/svg";
+
+const toSvgX = x => PAD.l + x * innerW;
+const toSvgY = y => PAD.t + (1 - y) * innerH;
+
+function el(tag, attrs) {
+  const e = document.createElementNS(ns, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+const isDark = matchMedia("(prefers-color-scheme: dark)").matches;
+const axisColor = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)";
+const labelColor = isDark ? "#b4b2a9" : "#5f5e5a";
+const textColor = isDark ? "#f1efe8" : "#2c2c2a";
+
+svg.appendChild(el("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" }));
+
+svg.appendChild(el("line", { x1: PAD.l, y1: PAD.t + innerH/2, x2: PAD.l + innerW, y2: PAD.t + innerH/2, stroke: axisColor, "stroke-width": "1", "stroke-dasharray": "4 4" }));
+svg.appendChild(el("line", { x1: PAD.l + innerW/2, y1: PAD.t, x2: PAD.l + innerW/2, y2: PAD.t + innerH, stroke: axisColor, "stroke-width": "1", "stroke-dasharray": "4 4" }));
+svg.appendChild(el("line", { x1: PAD.l, y1: PAD.t, x2: PAD.l, y2: PAD.t + innerH, stroke: axisColor, "stroke-width": "1.5" }));
+svg.appendChild(el("line", { x1: PAD.l, y1: PAD.t + innerH, x2: PAD.l + innerW, y2: PAD.t + innerH, stroke: axisColor, "stroke-width": "1.5" }));
+
+function axisLabel(txt, x, y, anchor) {
+  const t = el("text", { x, y, "text-anchor": anchor, "font-size": "11", fill: labelColor, "font-family": "var(--font-sans)" });
+  t.textContent = txt;
+  svg.appendChild(t);
+}
+axisLabel("低価格", PAD.l + 4, PAD.t + innerH + 18, "start");
+axisLabel("高価格", PAD.l + innerW, PAD.t + innerH + 18, "end");
+axisLabel("機能性低い", PAD.l - 8, PAD.t + innerH, "end");
+axisLabel("機能性高い", PAD.l - 8, PAD.t + 12, "end");
+
+function axisTitle(txt, x, y, rotate) {
+  const t = el("text", { x, y, "text-anchor": "middle", "font-size": "12", fill: labelColor, "font-family": "var(--font-sans)", "font-weight": "500", transform: rotate ? `rotate(-90, ${x}, ${y})` : "" });
+  t.textContent = txt;
+  svg.appendChild(t);
+}
+axisTitle("価格帯 →", PAD.l + innerW/2, PAD.t + innerH + 45, false);
+axisTitle("← 機能性・差別化", PAD.l - 55, PAD.t + innerH/2, true);
+
+brands.forEach(b => {
+  const cx = toSvgX(b.x);
+  const cy = toSvgY(b.y);
+  const circle = el("circle", { cx, cy, r: b.r, fill: b.color, opacity: b.cat === "new" ? "0.9" : "0.75", class: "brand-dot", "stroke-width": b.cat === "new" ? "2" : "0", stroke: b.cat === "new" ? textColor : "none" });
+  svg.appendChild(circle);
+
+  const lines = b.name.split("\n");
+  const fontSize = b.r < 9 ? 9 : (b.r < 12 ? 10 : 11);
+  const offsetY = cy + b.r + (lines.length > 1 ? 14 : 12);
+  lines.forEach((line, i) => {
+    const t = el("text", { x: cx, y: offsetY + i * 12, "text-anchor": "middle", "font-size": fontSize, fill: textColor, "font-family": "var(--font-sans)" });
+    t.textContent = line;
+    svg.appendChild(t);
+  });
+
+  circle.addEventListener("mouseenter", e => {
+    const tt = document.getElementById("tt");
+    tt.innerHTML = `<strong style="font-size:13px;">${b.name.replace("\n"," ")}</strong><br><span style="color:var(--color-text-secondary)">${b.tag}</span><br>${b.note.replace("\n","<br>")}`;
+    tt.style.opacity = "1";
+  });
+  circle.addEventListener("mousemove", e => {
+    const tt = document.getElementById("tt");
+    const rect = tt.parentElement.getBoundingClientRect();
+    tt.style.left = (e.clientX - rect.left + 12) + "px";
+    tt.style.top = (e.clientY - rect.top - 10) + "px";
+  });
+  circle.addEventListener("mouseleave", () => {
+    document.getElementById("tt").style.opacity = "0";
+  });
+});
+</script>
