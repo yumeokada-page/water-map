@@ -1,0 +1,127 @@
+
+<style>
+.tt {
+  position: absolute;
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 10px 14px;
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  max-width: 220px;
+  color: var(--color-text-primary);
+  z-index: 10;
+  line-height: 1.6;
+}
+.legend-row { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 1rem; }
+.leg { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<div style="padding: 1rem 0 0;">
+  <div class="legend-row">
+    <div class="leg"><div class="leg-dot" style="background:#888780;"></div>インド産（精製・添加）</div>
+    <div class="leg"><div class="leg-dot" style="background:#1D9E75;"></div>インド産（特定山系）</div>
+    <div class="leg"><div class="leg-dot" style="background:#7F77DD;"></div>機能性・アルカリ</div>
+    <div class="leg"><div class="leg-dot" style="background:#378ADD;"></div>海外産</div>
+  </div>
+  <div style="position:relative; width:100%;">
+    <svg id="map2" viewBox="0 0 700 520" width="100%" style="display:block;"></svg>
+    <div class="tt" id="tt2"></div>
+  </div>
+</div>
+
+<script>
+const W=700,H=520,PL=90,PR=40,PT=36,PB=80;
+const iW=W-PL-PR, iH=H-PT-PB;
+
+const brands=[
+  {name:"Clear Pure\nWater",  price:20,   score:1, r:9,  color:"#888780", cat:"インド産（精製・添加）", src:"精製水 / 中央Gujarat",    mrp:"₹20/1L(MRP)",   ph:"6.5〜7.5", hard:"N/A"},
+  {name:"Oxyrich",            price:19,   score:1, r:9,  color:"#888780", cat:"インド産（精製・添加）", src:"産地非公開 / 酸素添加",   mrp:"₹19/1L(EC換算)",ph:"6〜7",     hard:"N/A"},
+  {name:"Catch",              price:42,   score:4, r:10, color:"#1D9E75", cat:"インド産（特定山系）",   src:"ヒマラヤ山麓 Solan",      mrp:"₹42/1L(EC参考)",ph:"7.1〜7.7", hard:"50〜150mg/L"},
+  {name:"Himalayan\n(Tata)",  price:80,   score:5, r:14, color:"#1D9E75", cat:"インド産（特定山系）",   src:"Himachal Pradesh, Shivalik Range", mrp:"₹80/1L(MRP)", ph:"7.1〜7.7", hard:"N/A"},
+  {name:"Rhythm\nWater",      price:60,   score:5, r:8,  color:"#1D9E75", cat:"インド産（特定山系）",   src:"ヒマラヤ山系 約3,350m",   mrp:"₹60/1L(EC換算)",ph:"7.5+",     hard:"N/A"},
+  {name:"Qua",                price:108,  score:4, r:9,  color:"#1D9E75", cat:"インド産（特定山系）",   src:"ヒマラヤ山麓 Baddi, HP",  mrp:"₹108/1L(EC換算)",ph:"7.55",   hard:"N/A"},
+  {name:"Kelzai",             price:120,  score:5, r:8,  color:"#1D9E75", cat:"インド産（特定山系）",   src:"Sahyadri mountain springs", mrp:"₹120/1L(MRP)", ph:"7.4",     hard:"77mg/L"},
+  {name:"Aava",               price:110,  score:6, r:10, color:"#7F77DD", cat:"機能性・アルカリ",       src:"Aravalli山麓 Gujarat",   mrp:"₹110/1L(MRP)",  ph:"8.0",     hard:"97mg/L"},
+  {name:"Evocus\nBlack",      price:200,  score:5, r:12, color:"#7F77DD", cat:"機能性・アルカリ",       src:"米国産ミネラル輸入・添加",mrp:"₹200/1L(MRP換算)",ph:"8+",    hard:"N/A"},
+  {name:"Smartwater",         price:100,  score:2, r:10, color:"#888780", cat:"インド産（精製・添加）", src:"蒸留水 / 電解質添加",     mrp:"₹100/1L(MRP)",  ph:"7.6",     hard:"N/A"},
+  {name:"Vedica\n(Bisleri)",  price:249,  score:5, r:11, color:"#1D9E75", cat:"インド産（特定山系）",   src:"Uttarakhand",            mrp:"₹249/1L(MRP)",  ph:"7.3〜7.9", hard:"N/A"},
+  {name:"Evian",              price:275,  score:8, r:12, color:"#378ADD", cat:"海外産",                 src:"フランスアルプス Publier", mrp:"₹275/1L(MRP)",  ph:"7.2",     hard:"N/A"},
+  {name:"Godawan\nEstuary",   price:567,  score:5, r:9,  color:"#7F77DD", cat:"機能性・アルカリ",       src:"産地非公開（Diageo India）",mrp:"₹567/1L(MRP換算)",ph:"6.5〜7.5",hard:"N/A"},
+  {name:"VEEN",               price:682,  score:9, r:9,  color:"#378ADD", cat:"海外産",                 src:"ブータン東部ヒマラヤ",    mrp:"₹682/1L(MRP換算)",ph:"7.49",  hard:"220mg/L"},
+  {name:"VOSS",               price:1249, score:9, r:11, color:"#378ADD", cat:"海外産",                 src:"ノルウェー天然湧水",      mrp:"₹1249/1L(MRP換算)",ph:"7.6",  hard:"N/A"},
+];
+
+const maxP=1400, minP=0, maxS=10, minS=0;
+const toX = p => PL + ((p - minP)/(maxP - minP)) * iW;
+const toY = s => PT + (1 - (s - minS)/(maxS - minS)) * iH;
+
+const svg = document.getElementById("map2");
+const ns = "http://www.w3.org/2000/svg";
+const isDark = matchMedia("(prefers-color-scheme: dark)").matches;
+const axC = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
+const txC = isDark ? "#d3d1c7" : "#2c2c2a";
+const lbC = isDark ? "#888780" : "#888780";
+
+function el(tag, attrs, txt) {
+  const e = document.createElementNS(ns, tag);
+  for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+  if(txt!==undefined) e.textContent=txt;
+  return e;
+}
+
+svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:"transparent"}));
+
+const priceLines=[100,200,400,700,1000,1300];
+priceLines.forEach(p=>{
+  const x=toX(p);
+  svg.appendChild(el("line",{x1:x,y1:PT,x2:x,y2:PT+iH,stroke:axC,"stroke-width":"0.5","stroke-dasharray":"3 3"}));
+  svg.appendChild(el("text",{x:x,y:PT+iH+14,"text-anchor":"middle","font-size":"10",fill:lbC,"font-family":"system-ui"},`₹${p}`));
+});
+
+const scoreLines=[2,4,6,8];
+scoreLines.forEach(s=>{
+  const y=toY(s);
+  svg.appendChild(el("line",{x1:PL,y1:y,x2:PL+iW,y2:y,stroke:axC,"stroke-width":"0.5","stroke-dasharray":"3 3"}));
+  svg.appendChild(el("text",{x:PL-6,y:y+4,"text-anchor":"end","font-size":"10",fill:lbC,"font-family":"system-ui"},`${s}`));
+});
+
+svg.appendChild(el("line",{x1:PL,y1:PT,x2:PL,y2:PT+iH,stroke:axC,"stroke-width":"1.5"}));
+svg.appendChild(el("line",{x1:PL,y1:PT+iH,x2:PL+iW,y2:PT+iH,stroke:axC,"stroke-width":"1.5"}));
+
+svg.appendChild(el("text",{x:PL+iW/2,y:PT+iH+42,"text-anchor":"middle","font-size":"12","font-weight":"500",fill:lbC,"font-family":"system-ui"},"1L当たりMRP（INR）→"));
+
+const yTit=el("text",{x:PL-60,y:PT+iH/2,"text-anchor":"middle","font-size":"12","font-weight":"500",fill:lbC,"font-family":"system-ui",transform:`rotate(-90,${PL-60},${PT+iH/2})`},"産地特異性スコア（0〜10）→");
+svg.appendChild(yTit);
+
+svg.appendChild(el("text",{x:PL-6,y:PT+iH+4,"text-anchor":"end","font-size":"10",fill:lbC,"font-family":"system-ui"},"0"));
+
+const tt=document.getElementById("tt2");
+
+brands.forEach(b=>{
+  const cx=toX(b.price), cy=toY(b.score);
+  const c=el("circle",{cx,cy,r:b.r,fill:b.color,opacity:"0.75",style:"cursor:pointer;"});
+  svg.appendChild(c);
+
+  const lines=b.name.split("\n");
+  const fs=b.r<10?9:10;
+  const baseY=cy+b.r+12;
+  lines.forEach((ln,i)=>{
+    svg.appendChild(el("text",{x:cx,y:baseY+i*11,"text-anchor":"middle","font-size":fs,fill:txC,"font-family":"system-ui"},ln));
+  });
+
+  c.addEventListener("mouseenter",()=>{
+    tt.innerHTML=`<strong style="font-size:13px;">${b.name.replace(/\n/g," ")}</strong><br><span style="color:var(--color-text-secondary);font-size:11px;">${b.cat}</span><br>産地: ${b.src}<br>1L MRP: ${b.mrp}<br>pH: ${b.ph}<br>硬度: ${b.hard}<br>産地スコア: ${b.score}/10`;
+    tt.style.opacity="1";
+  });
+  c.addEventListener("mousemove",e=>{
+    const rect=tt.parentElement.getBoundingClientRect();
+    let lx=e.clientX-rect.left+14, ly=e.clientY-rect.top-10;
+    tt.style.left=lx+"px"; tt.style.top=ly+"px";
+  });
+  c.addEventListener("mouseleave",()=>{tt.style.opacity="0";});
+});
+</script>
